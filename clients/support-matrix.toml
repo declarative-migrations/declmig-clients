@@ -1,0 +1,56 @@
+version = 2
+
+[capabilities]
+required_operations = ["health"]
+required_security = ["https", "bearer_header", "bounded_response"]
+
+[languages.rust]
+tier = 1
+
+[languages.dart]
+tier = 1
+
+[languages.typescript]
+tier = 1
+
+[languages.python]
+tier = 2
+
+[languages.go]
+tier = 2
+
+[languages.java]
+tier = 2
+
+[languages.kotlin]
+tier = 3
+
+[languages.swift]
+tier = 3
+
+[languages.csharp]
+tier = 3
+
+[languages.c]
+tier = 3
+
+[languages.cpp]
+tier = 3
+
+[languages.ruby]
+tier = 3
+
+[languages.php]
+tier = 3
+
+[languages.elixir]
+tier = 3
+
+[languages.lua]
+tier = 3
+
+[languages.zig]
+tier = 3
+
+[languages.shell]
+tier = 3
