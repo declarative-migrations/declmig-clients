@@ -1,0 +1,13 @@
+[package]
+name = "declmig-validation-consumer"
+version = "0.1.0"
+edition = "2021"
+license = "MIT"
+publish = false
+
+[dependencies]
+declmig-validation = { path = "../../.deps/lib-core/validation/rust" }
+garde = "0.23"
+
+[lints.rust]
+unsafe_code = "forbid"
