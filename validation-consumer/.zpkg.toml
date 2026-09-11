@@ -1,0 +1,26 @@
+[package]
+org = "declarative-migrations"
+name = "declmig-validation-consumer"
+version = "0.1.0"
+description = "Client adapters for declmig-lib-core public validation SDKs"
+license = "MIT"
+
+[dependencies]
+"declarative-migrations/declmig-lib-core" = "^0.1.0"
+"declarative-migrations/declmig-interfaces" = "^0.1.0"
+
+[targets.typescript]
+dir = "typescript"
+adapter = "node"
+
+[targets.rust]
+dir = "rust"
+adapter = "rust"
+
+[targets.golang]
+dir = "golang"
+adapter = "none"
+
+[targets.gleam]
+dir = "gleam"
+adapter = "none"

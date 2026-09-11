@@ -1,0 +1,43 @@
+name: validation-sdk-consumer
+
+on:
+  pull_request:
+    paths: ["validation-consumer/**", "scripts/check-validation-imports.py", ".github/workflows/validation-sdk-consumer.yml"]
+  push:
+    branches: [main]
+    paths: ["validation-consumer/**", "scripts/check-validation-imports.py", ".github/workflows/validation-sdk-consumer.yml"]
+
+permissions:
+  contents: read
+
+jobs:
+  public-validation-consumers:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          repository: declarative-migrations/declmig-lib-core
+          ref: 0eca75b2417acbf8dab34f229bf2c9c8d639b6f5
+          path: .deps/lib-core
+      - run: python3 scripts/check-validation-imports.py
+      - run: npm install --prefix .deps/lib-core/validation/typescript
+      - run: npm run build --prefix .deps/lib-core/validation/typescript
+      - run: npm install --prefix validation-consumer/typescript
+      - run: npm run build --prefix validation-consumer/typescript
+      - run: npm test --prefix validation-consumer/typescript
+      - run: cargo test --manifest-path validation-consumer/rust/Cargo.toml
+      - uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16
+        with:
+          go-version: "1.25.x"
+          cache: false
+      - run: go test -mod=mod ./...
+        working-directory: validation-consumer/golang
+      - uses: erlef/setup-beam@54075bcc5e249e4758d363f27d099f55d843f124
+        with:
+          otp-version: "28.0"
+          gleam-version: "1.14.0"
+      - run: gleam test --target erlang
+        working-directory: validation-consumer/gleam
+      - run: gleam check --target javascript
+        working-directory: validation-consumer/gleam

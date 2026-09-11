@@ -1,0 +1,9 @@
+name = "declmig_validation_consumer"
+version = "0.1.0"
+
+[dependencies]
+gleam_stdlib = ">= 1.0.0 and < 2.0.0"
+declmig_validation = { path = "../../.deps/lib-core/validation/gleam" }
+
+[dev-dependencies]
+gleeunit = ">= 1.0.0 and < 2.0.0"
