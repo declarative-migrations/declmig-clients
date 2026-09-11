@@ -2,42 +2,149 @@ name: validation-sdk-consumer
 
 on:
   pull_request:
-    paths: ["validation-consumer/**", "scripts/check-validation-imports.py", ".github/workflows/validation-sdk-consumer.yml"]
+    paths:
+      - "validation-consumer/**"
+      - "tools/validation-import-check/**"
+      - "docs/rust-validation-import-boundary.md"
+      - ".github/workflows/validation-sdk-consumer.yml"
   push:
     branches: [main]
-    paths: ["validation-consumer/**", "scripts/check-validation-imports.py", ".github/workflows/validation-sdk-consumer.yml"]
+    paths:
+      - "validation-consumer/**"
+      - "tools/validation-import-check/**"
+      - "docs/rust-validation-import-boundary.md"
+      - ".github/workflows/validation-sdk-consumer.yml"
+  workflow_dispatch:
 
 permissions:
   contents: read
 
+concurrency:
+  group: validation-sdk-consumer-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   public-validation-consumers:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
     steps:
-      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
-      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+      - name: Check out exact source and migration parent
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+
+      - name: Install pinned Rust toolchain
+        uses: dtolnay/rust-toolchain@4be7066ada62dd38de10e7b70166bc74ed198c30
+        with:
+          toolchain: 1.95.0
+          components: rustfmt, clippy
+
+      - name: Preserve pre-migration Python failure evidence
+        shell: bash
+        run: |
+          set -euo pipefail
+          legacy="$RUNNER_TEMP/check-validation-imports.py"
+          git show 4f64c2e5b01bf7de95f06cc8aed10a39d2eec959:scripts/check-validation-imports.py > "$legacy"
+
+          text_only="$RUNNER_TEMP/text-only"
+          mkdir -p "$text_only/scripts"
+          cp "$legacy" "$text_only/scripts/check-validation-imports.py"
+          cp -R validation-consumer "$text_only/validation-consumer"
+          sed -i 's#@declarative-migrations/declmig-validation#@local/validation#g' "$text_only/validation-consumer/typescript/src/index.ts"
+          sed -i 's/declmig_validation/local_validation/g' "$text_only/validation-consumer/rust/src/lib.rs"
+          sed -i 's#github.com/declarative-migrations/declmig-lib-core/validation/golang#example.invalid/local-validation#g' "$text_only/validation-consumer/golang/consumer.go"
+          sed -i 's/declmig_validation/local_validation/g' "$text_only/validation-consumer/gleam/src/declmig_validation_consumer.gleam"
+          python3 "$text_only/scripts/check-validation-imports.py"
+
+          optimized="$RUNNER_TEMP/optimized"
+          mkdir -p "$optimized/scripts"
+          cp "$legacy" "$optimized/scripts/check-validation-imports.py"
+          cp -R validation-consumer "$optimized/validation-consumer"
+          find "$optimized/validation-consumer" -type f -exec sed -i \
+            -e 's#@declarative-migrations/declmig-validation#missing-ts-sdk#g' \
+            -e 's#github.com/declarative-migrations/declmig-lib-core/validation/golang#example.invalid/missing-go-sdk#g' \
+            -e 's/declmig_validation/missing_gleam_or_rust_sdk/g' \
+            -e 's/declmig-validation/missing-rust-sdk/g' {} +
+          if python3 "$optimized/scripts/check-validation-imports.py"; then
+            echo 'legacy checker unexpectedly rejected no missing dependencies' >&2
+            exit 1
+          fi
+          python3 -O "$optimized/scripts/check-validation-imports.py"
+
+      - name: Format, lint, and test the Rust boundary
+        shell: bash
+        run: |
+          set -euo pipefail
+          cargo fmt --manifest-path tools/validation-import-check/Cargo.toml --all -- --check
+          cargo clippy --manifest-path tools/validation-import-check/Cargo.toml --all-targets -- -D warnings
+          cargo test --manifest-path tools/validation-import-check/Cargo.toml --all-targets
+          cargo test --release --manifest-path tools/validation-import-check/Cargo.toml --all-targets
+
+      - name: Run the fail-closed boundary and retain a receipt
+        shell: bash
+        run: |
+          set -euo pipefail
+          cargo run --quiet --manifest-path tools/validation-import-check/Cargo.toml -- \
+            --root . --report target/validation-import-report.json
+          jq -e '
+            .schema == "ores.validation-import-check/v1" and
+            .status == "passed" and
+            .zeroUnexplainedFindings == true and
+            (.checks | length) == 4 and
+            (.errors | length) == 0
+          ' target/validation-import-report.json
+
+      - name: Check out reviewed validation SDK implementation
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
         with:
           repository: declarative-migrations/declmig-lib-core
           ref: 0eca75b2417acbf8dab34f229bf2c9c8d639b6f5
           path: .deps/lib-core
-      - run: python3 scripts/check-validation-imports.py
-      - run: npm install --prefix .deps/lib-core/validation/typescript
-      - run: npm run build --prefix .deps/lib-core/validation/typescript
-      - run: npm install --prefix validation-consumer/typescript
-      - run: npm run build --prefix validation-consumer/typescript
-      - run: npm test --prefix validation-consumer/typescript
-      - run: cargo test --manifest-path validation-consumer/rust/Cargo.toml
-      - uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16
+          persist-credentials: false
+
+      - name: Build TypeScript consumer
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm install --prefix .deps/lib-core/validation/typescript
+          npm run build --prefix .deps/lib-core/validation/typescript
+          npm install --prefix validation-consumer/typescript
+          npm run build --prefix validation-consumer/typescript
+          npm test --prefix validation-consumer/typescript
+
+      - name: Test Rust consumer
+        run: cargo test --manifest-path validation-consumer/rust/Cargo.toml
+
+      - name: Install Go
+        uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16
         with:
           go-version: "1.25.x"
           cache: false
-      - run: go test -mod=mod ./...
+
+      - name: Test Go consumer
+        run: go test -mod=mod ./...
         working-directory: validation-consumer/golang
-      - uses: erlef/setup-beam@54075bcc5e249e4758d363f27d099f55d843f124
+
+      - name: Install Erlang and Gleam
+        uses: erlef/setup-beam@54075bcc5e249e4758d363f27d099f55d843f124
         with:
           otp-version: "28.0"
           gleam-version: "1.14.0"
-      - run: gleam test --target erlang
+
+      - name: Test Gleam consumer on both targets
+        shell: bash
         working-directory: validation-consumer/gleam
-      - run: gleam check --target javascript
-        working-directory: validation-consumer/gleam
+        run: |
+          set -euo pipefail
+          gleam test --target erlang
+          gleam check --target javascript
+
+      - name: Upload validation boundary evidence
+        if: ${{ always() && hashFiles('target/validation-import-report.json') != '' }}
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: validation-import-boundary-${{ github.run_id }}-${{ github.run_attempt }}
+          path: target/validation-import-report.json
+          if-no-files-found: error
+          retention-days: 30
