@@ -1,0 +1,63 @@
+name: repair validation import Rust branch
+
+on:
+  push:
+    branches:
+      - refactor/rust-validation-import-boundary-2026-09-11
+    paths:
+      - '.github/workflows/repair-validation-import-rust.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  repair:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Check out branch
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          ref: refactor/rust-validation-import-boundary-2026-09-11
+          fetch-depth: 0
+
+      - name: Apply exact review repairs and remove this one-shot workflow
+        shell: bash
+        run: |
+          set -euo pipefail
+          node <<'NODE'
+          const fs = require('fs');
+
+          const rustPath = 'tools/validation-import-check/src/main.rs';
+          let rust = fs.readFileSync(rustPath, 'utf8');
+          const unusedBefore = "State::Quoted(quote) if current == '\\\\' => {";
+          const unusedAfter = "State::Quoted(_) if current == '\\\\' => {";
+          if (!rust.includes(unusedBefore)) throw new Error('unused binding pattern not found');
+          rust = rust.replace(unusedBefore, unusedAfter);
+          const assertionBefore = 'error.contains("Rust manifest")';
+          const assertionAfter = 'error.contains("Rust validation dependency")';
+          if (!rust.includes(assertionBefore)) throw new Error('diagnostic assertion not found');
+          rust = rust.replace(assertionBefore, assertionAfter);
+          fs.writeFileSync(rustPath, rust);
+
+          const workflowPath = '.github/workflows/validation-sdk-consumer.yml';
+          let workflow = fs.readFileSync(workflowPath, 'utf8');
+          const branchBefore = '    branches: [main]';
+          const branchAfter = `    branches:\n      - main\n      - refactor/rust-validation-import-boundary-2026-09-11`;
+          if (!workflow.includes(branchBefore)) throw new Error('push branch list not found');
+          workflow = workflow.replace(branchBefore, branchAfter);
+          workflow = workflow.replace(
+            'legacy checker unexpectedly rejected no missing dependencies',
+            'legacy checker unexpectedly passed with missing dependencies',
+          );
+          fs.writeFileSync(workflowPath, workflow);
+          NODE
+
+          rm .github/workflows/repair-validation-import-rust.yml
+          git diff --check
+          git config user.name 'ORESoftware automation'
+          git config user.email 'automation@oresoftware.com'
+          git add tools/validation-import-check/src/main.rs .github/workflows/validation-sdk-consumer.yml
+          git rm --cached .github/workflows/repair-validation-import-rust.yml
+          git commit -m 'fix: harden validation import branch certification'
+          git push origin HEAD:refactor/rust-validation-import-boundary-2026-09-11
