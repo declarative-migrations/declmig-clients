@@ -8,7 +8,9 @@ on:
       - "docs/rust-validation-import-boundary.md"
       - ".github/workflows/validation-sdk-consumer.yml"
   push:
-    branches: [main]
+    branches:
+      - main
+      - refactor/rust-validation-import-boundary-2026-09-11
     paths:
       - "validation-consumer/**"
       - "tools/validation-import-check/**"
@@ -67,7 +69,7 @@ jobs:
             -e 's/declmig_validation/missing_gleam_or_rust_sdk/g' \
             -e 's/declmig-validation/missing-rust-sdk/g' {} +
           if python3 "$optimized/scripts/check-validation-imports.py"; then
-            echo 'legacy checker unexpectedly rejected no missing dependencies' >&2
+            echo 'legacy checker unexpectedly passed with missing dependencies' >&2
             exit 1
           fi
           python3 -O "$optimized/scripts/check-validation-imports.py"
