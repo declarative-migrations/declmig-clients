@@ -209,7 +209,7 @@ fn strip_comments(source: &str) -> String {
                 output.push(if current == '\n' { '\n' } else { ' ' });
                 index += 1;
             }
-            State::Quoted(quote) if current == '\\' => {
+            State::Quoted(_) if current == '\\' => {
                 output.push(current);
                 if let Some(escaped) = next {
                     output.push(escaped);
@@ -623,7 +623,7 @@ mod tests {
             "[package]\nname = \"declmig-validation-consumer\"\nversion = \"0.1.0\"\n[dependencies]\ndeclmig-validation = { path = \"../../server-core\" }\n",
         );
         let report = audit(fixture.path());
-        assert!(report.errors.iter().any(|error| error.contains("Rust manifest")));
+        assert!(report.errors.iter().any(|error| error.contains("Rust validation dependency")));
     }
 
     #[test]
