@@ -11,8 +11,7 @@ use std::process::ExitCode;
 const TS_PACKAGE: &str = "@declarative-migrations/declmig-validation";
 const RUST_PACKAGE: &str = "declmig-validation";
 const RUST_CRATE: &str = "declmig_validation";
-const GO_PACKAGE: &str =
-    "github.com/declarative-migrations/declmig-lib-core/validation/golang";
+const GO_PACKAGE: &str = "github.com/declarative-migrations/declmig-lib-core/validation/golang";
 const GLEAM_PACKAGE: &str = "declmig_validation";
 const FORBIDDEN: [&str; 3] = ["declmig-server-core", "server-core", "migration-executor"];
 
@@ -93,7 +92,11 @@ fn safe_read(root: &Path, relative: &str) -> Result<String, String> {
         .map_err(|error| format!("failed to read {relative} as UTF-8: {error}"))
 }
 
-fn collect_sources(root: &Path, relative: &str, extensions: &[&str]) -> Result<Vec<String>, String> {
+fn collect_sources(
+    root: &Path,
+    relative: &str,
+    extensions: &[&str],
+) -> Result<Vec<String>, String> {
     let root = canonical_root(root)?;
     let start = root.join(relative);
     let metadata = fs::symlink_metadata(&start)
@@ -118,7 +121,10 @@ fn collect_sources(root: &Path, relative: &str, extensions: &[&str]) -> Result<V
             let metadata = fs::symlink_metadata(&path)
                 .map_err(|error| format!("failed to inspect {}: {error}", path.display()))?;
             if metadata.file_type().is_symlink() {
-                return Err(format!("source path {} must not be a symlink", path.display()));
+                return Err(format!(
+                    "source path {} must not be a symlink",
+                    path.display()
+                ));
             }
             if metadata.is_dir() {
                 visit(root, &path, extensions, output)?;
@@ -134,11 +140,15 @@ fn collect_sources(root: &Path, relative: &str, extensions: &[&str]) -> Result<V
             let canonical = fs::canonicalize(&path)
                 .map_err(|error| format!("failed to canonicalize {}: {error}", path.display()))?;
             if !canonical.starts_with(root) {
-                return Err(format!("source path {} escaped the repository", path.display()));
+                return Err(format!(
+                    "source path {} escaped the repository",
+                    path.display()
+                ));
             }
             output.push(
-                fs::read_to_string(&canonical)
-                    .map_err(|error| format!("failed to read {} as UTF-8: {error}", path.display()))?,
+                fs::read_to_string(&canonical).map_err(|error| {
+                    format!("failed to read {} as UTF-8: {error}", path.display())
+                })?,
             );
         }
         Ok(())
@@ -233,14 +243,19 @@ fn strip_comments(source: &str) -> String {
 }
 
 fn compact(source: &str) -> String {
-    source.chars().filter(|character| !character.is_whitespace()).collect()
+    source
+        .chars()
+        .filter(|character| !character.is_whitespace())
+        .collect()
 }
 
 fn reject_forbidden(label: &str, values: impl IntoIterator<Item = String>) -> Result<(), String> {
     for value in values {
         for forbidden in FORBIDDEN {
             if value.contains(forbidden) {
-                return Err(format!("{label} exposes forbidden server package {forbidden}"));
+                return Err(format!(
+                    "{label} exposes forbidden server package {forbidden}"
+                ));
             }
         }
     }
@@ -256,14 +271,19 @@ fn validate_typescript(root: &Path) -> Result<String, String> {
     let manifest: NodeManifest = serde_json::from_str(&source)
         .map_err(|error| format!("invalid TypeScript package.json: {error}"))?;
     if manifest.name != "@declarative-migrations/declmig-validation-consumer" {
-        return Err(format!("unexpected TypeScript package name {}", manifest.name));
+        return Err(format!(
+            "unexpected TypeScript package name {}",
+            manifest.name
+        ));
     }
     let dependency = manifest
         .dependencies
         .get(TS_PACKAGE)
         .or_else(|| manifest.dev_dependencies.get(TS_PACKAGE));
     if dependency.map(String::as_str) != Some("file:../../.deps/lib-core/validation/typescript") {
-        return Err("TypeScript validation dependency must use the reviewed local SDK path".to_owned());
+        return Err(
+            "TypeScript validation dependency must use the reviewed local SDK path".to_owned(),
+        );
     }
     reject_forbidden(
         "TypeScript manifest",
@@ -292,17 +312,22 @@ fn validate_typescript(root: &Path) -> Result<String, String> {
         .any(|needle| normalized.contains(needle));
     }
     if !imported {
-        return Err("TypeScript executable source does not import the public validation SDK".to_owned());
+        return Err(
+            "TypeScript executable source does not import the public validation SDK".to_owned(),
+        );
     }
     Ok("manifest path and executable import are exact".to_owned())
 }
 
 fn validate_rust(root: &Path) -> Result<String, String> {
     let source = safe_read(root, "validation-consumer/rust/Cargo.toml")?;
-    let manifest: CargoManifest = toml::from_str(&source)
-        .map_err(|error| format!("invalid Rust Cargo.toml: {error}"))?;
+    let manifest: CargoManifest =
+        toml::from_str(&source).map_err(|error| format!("invalid Rust Cargo.toml: {error}"))?;
     if manifest.package.name != "declmig-validation-consumer" {
-        return Err(format!("unexpected Rust package name {}", manifest.package.name));
+        return Err(format!(
+            "unexpected Rust package name {}",
+            manifest.package.name
+        ));
     }
     let dependency = manifest
         .dependencies
@@ -323,7 +348,9 @@ fn validate_rust(root: &Path) -> Result<String, String> {
             || normalized.contains(&format!("externcrate{RUST_CRATE}"));
     }
     if !imported {
-        return Err("Rust executable source does not import the public validation crate".to_owned());
+        return Err(
+            "Rust executable source does not import the public validation crate".to_owned(),
+        );
     }
     Ok("manifest path and executable import are exact".to_owned())
 }
@@ -364,11 +391,16 @@ fn validate_go(root: &Path) -> Result<String, String> {
         .filter(|line| !line.is_empty() && !line.starts_with("//"))
         .collect::<Vec<_>>()
         .join(" ");
-    if !normalized.contains("module github.com/declarative-migrations/declmig-clients/validation-consumer/golang") {
+    if !normalized.contains(
+        "module github.com/declarative-migrations/declmig-clients/validation-consumer/golang",
+    ) {
         return Err("unexpected Go consumer module identity".to_owned());
     }
     if !normalized.contains(&format!("require {GO_PACKAGE} v0.0.0")) {
-        return Err("Go validation module must be required at the reviewed local placeholder version".to_owned());
+        return Err(
+            "Go validation module must be required at the reviewed local placeholder version"
+                .to_owned(),
+        );
     }
     if !normalized.contains(&format!(
         "replace {GO_PACKAGE} => ../../.deps/lib-core/validation/golang"
@@ -391,8 +423,8 @@ fn validate_go(root: &Path) -> Result<String, String> {
 
 fn validate_gleam(root: &Path) -> Result<String, String> {
     let source = safe_read(root, "validation-consumer/gleam/gleam.toml")?;
-    let manifest: GleamManifest = toml::from_str(&source)
-        .map_err(|error| format!("invalid Gleam manifest: {error}"))?;
+    let manifest: GleamManifest =
+        toml::from_str(&source).map_err(|error| format!("invalid Gleam manifest: {error}"))?;
     if manifest.name != "declmig_validation_consumer" {
         return Err(format!("unexpected Gleam package name {}", manifest.name));
     }
@@ -418,7 +450,9 @@ fn validate_gleam(root: &Path) -> Result<String, String> {
         });
     }
     if !imported {
-        return Err("Gleam executable source does not import the public validation package".to_owned());
+        return Err(
+            "Gleam executable source does not import the public validation package".to_owned(),
+        );
     }
     Ok("manifest path and executable import are exact".to_owned())
 }
@@ -428,7 +462,10 @@ fn audit(root: &Path) -> Report {
         .map(|path| path.display().to_string())
         .unwrap_or_else(|_| root.display().to_string());
     let validations: [(&str, Result<String, String>); 4] = [
-        ("typescript-public-validation-boundary", validate_typescript(root)),
+        (
+            "typescript-public-validation-boundary",
+            validate_typescript(root),
+        ),
         ("rust-public-validation-boundary", validate_rust(root)),
         ("go-public-validation-boundary", validate_go(root)),
         ("gleam-public-validation-boundary", validate_gleam(root)),
@@ -517,7 +554,11 @@ fn main() -> ExitCode {
     };
     let report = audit(&root);
     if let Some(path) = report_path {
-        let path = if path.is_absolute() { path } else { root.join(path) };
+        let path = if path.is_absolute() {
+            path
+        } else {
+            root.join(path)
+        };
         if let Err(error) = write_report(&path, &report) {
             eprintln!("validation import audit: {error}");
             return ExitCode::from(2);
@@ -611,7 +652,12 @@ mod tests {
             "@declarative-migrations/declmig-validation\n",
         );
         let report = audit(fixture.path());
-        assert!(report.errors.iter().any(|error| error.contains("TypeScript executable source")));
+        assert!(
+            report
+                .errors
+                .iter()
+                .any(|error| error.contains("TypeScript executable source"))
+        );
     }
 
     #[test]
@@ -623,7 +669,12 @@ mod tests {
             "[package]\nname = \"declmig-validation-consumer\"\nversion = \"0.1.0\"\n[dependencies]\ndeclmig-validation = { path = \"../../server-core\" }\n",
         );
         let report = audit(fixture.path());
-        assert!(report.errors.iter().any(|error| error.contains("Rust validation dependency")));
+        assert!(
+            report
+                .errors
+                .iter()
+                .any(|error| error.contains("Rust validation dependency"))
+        );
     }
 
     #[test]
@@ -635,7 +686,12 @@ mod tests {
             "import declmig_validation\nimport migration-executor\n",
         );
         let report = audit(fixture.path());
-        assert!(report.errors.iter().any(|error| error.contains("forbidden server package")));
+        assert!(
+            report
+                .errors
+                .iter()
+                .any(|error| error.contains("forbidden server package"))
+        );
     }
 
     #[test]
@@ -647,7 +703,12 @@ mod tests {
             "module github.com/declarative-migrations/declmig-clients/validation-consumer/golang\nrequire github.com/declarative-migrations/declmig-lib-core/validation/golang v0.0.0\nreplace github.com/declarative-migrations/declmig-lib-core/validation/golang => ../../wrong\n",
         );
         let report = audit(fixture.path());
-        assert!(report.errors.iter().any(|error| error.contains("Go validation module")));
+        assert!(
+            report
+                .errors
+                .iter()
+                .any(|error| error.contains("Go validation module"))
+        );
     }
 
     #[cfg(unix)]
@@ -657,7 +718,9 @@ mod tests {
         let fixture = valid_fixture();
         let outside = fixture.path().join("outside.ts");
         fs::write(&outside, format!("import x from \"{TS_PACKAGE}\";\n")).unwrap();
-        let source = fixture.path().join("validation-consumer/typescript/src/index.ts");
+        let source = fixture
+            .path()
+            .join("validation-consumer/typescript/src/index.ts");
         fs::remove_file(&source).unwrap();
         symlink(&outside, &source).unwrap();
         let report = audit(fixture.path());
