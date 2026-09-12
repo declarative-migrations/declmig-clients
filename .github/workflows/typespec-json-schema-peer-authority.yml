@@ -92,6 +92,7 @@ jobs:
         run: git diff --exit-code -- test/fixtures/schema-authority-canary/
       - name: Retain receipt, Contract IR, SARIF, and generated witness
         if: ${{ always() }}
+        continue-on-error: true
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: schema-peer-authority-${{ github.event.repository.name }}-${{ github.run_id }}
