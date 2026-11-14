@@ -8,11 +8,21 @@ export interface ClientConfig {
 
 /** Reject credentials, ambiguous URLs and non-HTTP transports at the SDK boundary. */
 export function isValidBaseUrl(value: string): boolean {
-  const rest = value.startsWith("https://") ? value.slice(8)
-    : value.startsWith("http://") ? value.slice(7) : "";
-  const authority = rest.split("/")[0];
-  return authority.length > 0 && !authority.includes("@")
-    && !/[\\s?#\\\\]/.test(rest);
+  // URL() rejects invalid ports/IPv6 syntax; inspect the original text too,
+  // because URL normalization can silently encode spaces and backslashes.
+  if (Array.from(value).some(ch =>
+    ch.trim().length === 0 || ch.charCodeAt(0) === 92 || ch === "?" || ch === "#"
+  )) return false;
+  try {
+    const url = new URL(value);
+    return (url.protocol === "https:" || url.protocol === "http:")
+      && url.hostname.length > 0
+      && url.username.length === 0
+      && url.password.length === 0
+      && !url.search && !url.hash;
+  } catch {
+    return false;
+  }
 }
 
 export function configFromEnv(
