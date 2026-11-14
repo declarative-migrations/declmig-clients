@@ -13,12 +13,15 @@ export function isValidBaseUrl(value: string): boolean {
   if (Array.from(value).some(ch =>
     ch.trim().length === 0 || ch.charCodeAt(0) === 92 || ch === "?" || ch === "#"
   )) return false;
+  const authority = value.slice(value.indexOf("://") + 3).split("/")[0];
+  if (authority.endsWith(":") || authority.includes("%")) return false;
   try {
     const url = new URL(value);
     return (url.protocol === "https:" || url.protocol === "http:")
       && url.hostname.length > 0
       && url.username.length === 0
       && url.password.length === 0
+      && url.port !== "0"
       && !url.search && !url.hash;
   } catch {
     return false;
@@ -28,7 +31,7 @@ export function isValidBaseUrl(value: string): boolean {
 export function configFromEnv(
   env: Record<string, string | undefined> = process.env,
 ): ClientConfig {
-  const baseUrl = env["DECLMIG_API_BASE"]?.trim();
+  const baseUrl = env["DECLMIG_API_BASE"];
   if (!baseUrl || !isValidBaseUrl(baseUrl)) {
     throw new ClientError("invalid_base");
   }
