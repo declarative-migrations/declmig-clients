@@ -11,12 +11,50 @@ pub struct ClientConfig {
 
 /// A conservative HTTP(S) URL gate used before any client request.
 pub fn is_valid_base_url(value: &str) -> bool {
-    let rest = value.strip_prefix("https://")
+    let rest = value
+        .strip_prefix("https://")
         .or_else(|| value.strip_prefix("http://"));
     let Some(rest) = rest else { return false };
+    if rest.chars().any(|c| c.is_whitespace() || matches!(c, '?' | '#') || c == char::from(92_u8)) {
+        return false;
+    }
     let authority = rest.split('/').next().unwrap_or("");
-    !authority.is_empty() && !authority.contains('@')
-        && !rest.chars().any(|c| c.is_whitespace() || matches!(c, '?' | '#' | '\\'))
+    if authority.is_empty() || authority.contains('@') || authority.contains('%') {
+        return false;
+    }
+    if authority.starts_with('[') {
+        let Some((ip, suffix)) = authority.split_once(']') else { return false };
+        let Some(ip) = ip.strip_prefix('[') else { return false };
+        return ip.parse::<std::net::Ipv6Addr>().is_ok()
+            && (suffix.is_empty()
+                || suffix.strip_prefix(':').is_some_and(valid_port));
+    }
+    let (host, port) = match authority.rsplit_once(':') {
+        Some((host, port)) if !host.contains(':') => (host, Some(port)),
+        Some(_) => return false,
+        None => (authority, None),
+    };
+    if port.is_some_and(|port| !valid_port(port)) {
+        return false;
+    }
+    if host.is_empty()
+        || !host.split('.').all(|label| {
+            !label.is_empty()
+                && !label.starts_with('-')
+                && !label.ends_with('-')
+                && label.bytes().all(|ch| ch.is_ascii_alphanumeric() || ch == b'-')
+        })
+    {
+        return false;
+    }
+    if host.bytes().all(|ch| ch.is_ascii_digit() || ch == b'.') {
+        return host.parse::<std::net::Ipv4Addr>().is_ok();
+    }
+    true
+}
+
+fn valid_port(port: &str) -> bool {
+    port.parse::<u16>().is_ok_and(|port| port != 0)
 }
 
 impl ClientConfig {
@@ -42,10 +80,15 @@ mod tests {
     fn rejects_credential_bearing_and_ambiguous_urls() {
         for value in ["", "ftp://example.test", "https://", "https://u:p@example.test",
                       "https://example.test?q=1", "https://example.test/#x",
-                      "https://example.test/white space"] {
+                      "https://example.test/white space",
+                      "https://:123", "https://api.example.test:bad",
+                      "https://api.example.test:0", "https://api.example.test:",
+                      "https://999.999.999.999", "https://bad_name.example",
+                      "https://[::1", "https://api.example.test\\\\path"] {
             assert!(!is_valid_base_url(value), "{value}");
         }
         assert!(is_valid_base_url("http://127.0.0.1:8080"));
         assert!(is_valid_base_url("https://api.example.test/v1"));
+        assert!(is_valid_base_url("https://[::1]:8443/api"));
     }
 }
