@@ -16,7 +16,7 @@ pub fn is_valid_base_url(value: &str) -> bool {
     let Some(rest) = rest else { return false };
     let authority = rest.split('/').next().unwrap_or("");
     !authority.is_empty() && !authority.contains('@')
-        && !rest.chars().any(|c| c.is_whitespace() || matches!(c, '?' | '#' | '\\\\'))
+        && !rest.chars().any(|c| c.is_whitespace() || matches!(c, '?' | '#' | '\\'))
 }
 
 impl ClientConfig {
