@@ -14,9 +14,22 @@ export function isValidBaseUrl(value: string): boolean {
     ch.trim().length === 0 || ch.charCodeAt(0) === 92 || ch === "?" || ch === "#"
   )) return false;
   const authority = value.slice(value.indexOf("://") + 3).split("/")[0];
-  if (authority.endsWith(":") || authority.includes("%")) return false;
+  if (authority.endsWith(":") || authority.includes("%")
+      || Array.from(authority).some(ch => ch.charCodeAt(0) > 127)) return false;
   try {
     const url = new URL(value);
+    if (!url.hostname.startsWith("[")) {
+      const validLabel = (label: string) => label.length > 0
+        && !label.startsWith("-") && !label.endsWith("-")
+        && Array.from(label).every(ch => {
+          const code = ch.charCodeAt(0);
+          return (code >= 48 && code <= 57)
+            || (code >= 65 && code <= 90)
+            || (code >= 97 && code <= 122)
+            || code === 45;
+        });
+      if (!url.hostname.split(".").every(validLabel)) return false;
+    }
     return (url.protocol === "https:" || url.protocol === "http:")
       && url.hostname.length > 0
       && url.username.length === 0
