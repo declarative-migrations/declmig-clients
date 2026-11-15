@@ -5,13 +5,18 @@ const ATTO: &str = include_str!("../../atto/src/client.atto");
 
 #[test]
 fn atto_candidate_names_match_the_rust_public_wire_header() {
-    let health = serde_json::to_value(Health { ok: true, service: "api".into() }).unwrap();
+    let health = serde_json::to_value(Health {
+        ok: true,
+        service: "api".into(),
+    })
+    .unwrap();
     assert_eq!(health, json!({"ok": true, "service": "api"}));
     let envelope = serde_json::to_value(ResourceEnvelope {
         id: "plan-1".into(),
         revision: "r1".into(),
         payload: json!({"operation": "expand"}),
-    }).unwrap();
+    })
+    .unwrap();
     assert_eq!(envelope["id"], "plan-1");
     assert_eq!(envelope["revision"], "r1");
     assert!(ATTO.contains("define class Health as"));
@@ -29,7 +34,10 @@ fn response_budget_is_aligned_with_the_atto_candidate() {
         base_url: "https://example.invalid".into(),
         bearer_token: None,
         max_response_bytes: 65536,
-    }).unwrap();
-    assert!(client.decode_health(br#"{"ok":true,"service":"api"}"#).is_ok());
+    })
+    .unwrap();
+    assert!(client
+        .decode_health(br#"{"ok":true,"service":"api"}"#)
+        .is_ok());
     assert!(client.decode_health(&vec![b' '; 65537]).is_err());
 }
