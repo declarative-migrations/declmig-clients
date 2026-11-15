@@ -13,6 +13,10 @@ tier = 1
 [languages.typescript]
 tier = 1
 
+# Candidate library-only boundary; no HTTP transport or JSON decoder yet.
+[languages.atto]
+tier = 3
+
 [languages.python]
 tier = 2
 

@@ -1,0 +1,23 @@
+# AttoLang client candidate (not release-admitted)
+
+`src/client.atto` is an AttoLang **library source** with a typed health DTO,
+a migration-plan header and pure validation helpers matching the existing
+`/v1/health` SDK boundary: a 64 KiB response budget, HTTP status 200,
+nonempty bearer tokens, and nonempty plan IDs/revisions.
+
+It does **not** implement HTTP requests, JSON parsing, bearer-header emission,
+authentication, or the opaque `payload` field. Those must be supplied by an
+independently reviewed transport/decoder and admitted contract IR before the
+Atto client becomes a complete Tier 1 SDK. Do not infer production readiness
+or TypeSpec/JSON Schema parity from source-only tests.
+
+For future compiler verification, concatenate `src/client.atto` with
+`tests/smoke.atto` and compile the combined source with a pinned `attoc`.
+The smoke fixture expects exit 0 upon *guest execution*, but that execution
+has **NOT_EXECUTED** status. Cross-repository checkout of the private Atto
+compiler was denied on the source repository runner. The current CI tests only
+the Rust counterpart with `cargo test --manifest-path clients/rust/Cargo.toml`.
+No Atto backend compilation or runtime parity is claimed.
+
+The source of truth is `declarative-migrations/declmig-interfaces`. Its
+independent TypeSpec and JSON Schema/OpenAPI authorities are unchanged.

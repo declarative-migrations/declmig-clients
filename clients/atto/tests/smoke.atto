@@ -1,0 +1,16 @@
+// Compile with src/client.atto prepended. expect-exit: 0
+pub fnc main(): int {
+    if response_size_allowed(-1) then return 1; fi
+    if response_size_allowed(65537) then return 2; fi
+    if response_size_allowed(65536) == false then return 3; fi
+    if bearer_token_allowed(0) then return 4; fi
+    if bearer_token_allowed(1) == false then return 5; fi
+    if health_http_status_allowed(201) then return 6; fi
+    if health_http_status_allowed(200) == false then return 7; fi
+    if resource_id_lengths_allowed(0, 1) then return 8; fi
+    if resource_id_lengths_allowed(1, 0) then return 9; fi
+    if resource_id_lengths_allowed(1, 1) == false then return 10; fi
+    val health = new Health();
+    if health.ok then return 11; fi
+    return 0;
+}

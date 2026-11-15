@@ -1,0 +1,35 @@
+name: atto-candidate-source-boundary
+
+on:
+  pull_request:
+    paths:
+      - "clients/atto/**"
+      - "clients/rust/tests/atto_contract_surface.rs"
+      - ".github/workflows/atto-candidate-smoke.yml"
+  push:
+    branches: [main]
+    paths:
+      - "clients/atto/**"
+      - "clients/rust/tests/atto_contract_surface.rs"
+      - ".github/workflows/atto-candidate-smoke.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  source-boundary-only:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+      - name: Test Rust contract counterpart
+        run: cargo test --manifest-path clients/rust/Cargo.toml --all-targets
+      - name: Mark Atto guest compilation and execution not executed
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -s "clients/atto/src/client.atto"
+          test -s "clients/atto/tests/smoke.atto"
+          echo "::warning::AttoLang compiler NOT_EXECUTED: private cross-org source checkout was inaccessible. Source-only Rust counterpart checks are not guest compilation or backend parity."
